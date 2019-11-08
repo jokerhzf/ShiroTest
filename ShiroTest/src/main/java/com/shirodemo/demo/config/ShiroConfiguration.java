@@ -1,9 +1,15 @@
 package com.shirodemo.demo.config;
 
-import com.shirodemo.demo.CustomRealm;
+import com.shirodemo.demo.cache.RedisCacheManager;
+import com.shirodemo.demo.realm.CustomRealm;
+import com.shirodemo.demo.filter.RolesOrFilter;
+import com.shirodemo.demo.session.CustomSessionManager;
+import com.shirodemo.demo.session.RedisSessionDAO;
 import org.apache.shiro.authc.credential.HashedCredentialsMatcher;
 import org.apache.shiro.mgt.DefaultSecurityManager;
 import org.apache.shiro.mgt.SecurityManager;
+import org.apache.shiro.cache.CacheManager;
+import org.apache.shiro.session.mgt.SessionManager;
 import org.apache.shiro.spring.LifecycleBeanPostProcessor;
 import org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor;
 import org.apache.shiro.spring.web.ShiroFilterFactoryBean;
@@ -19,6 +25,14 @@ import java.util.Map;
 
 @Configuration
 public class ShiroConfiguration {
+    /**
+     * 身份认证realm; (这个需要自己写，账号密码校验；权限等)
+     */
+    @Bean
+    public CustomRealm customRealm() {
+        CustomRealm myRealm = new CustomRealm();
+        return myRealm;
+    }
     /**
      * ShiroFilterFactoryBean 处理拦截资源文件问题。
      * 注意：单独一个ShiroFilterFactoryBean配置是会报错的，因为在初始化ShiroFilterFactoryBean的时候需要注入：SecurityManager
@@ -45,8 +59,8 @@ public class ShiroConfiguration {
 
         //自定义拦截器
         Map<String, Filter> filterMap = new LinkedHashMap<>();
-        //限制同一账号同时在线的个数
-        //filterMap.put("kickout",kickoutSessionControlFilter());
+
+        filterMap.put("roleOr", new RolesOrFilter());
         shiroFilterFactoryBean.setFilters(filterMap);
 
         //权限控制map，过滤器链
@@ -73,6 +87,10 @@ public class ShiroConfiguration {
 
         //设置Realm
         securityManager.setRealm(customRealm);
+        // 设置sessionManager
+        securityManager.setSessionManager(sessionManager());
+        // 设置CacheManager
+        securityManager.setCacheManager(redisCacheManager());
         return securityManager;
     }
 
@@ -100,5 +118,24 @@ public class ShiroConfiguration {
         AuthorizationAttributeSourceAdvisor authorizationAttributeSourceAdvisor = new AuthorizationAttributeSourceAdvisor();
         authorizationAttributeSourceAdvisor.setSecurityManager(securityManager);
         return authorizationAttributeSourceAdvisor;
+    }
+
+    @Bean
+    public SessionManager sessionManager(){
+        CustomSessionManager sessionManager = new CustomSessionManager();
+        sessionManager.setSessionDAO(redisSessionDAO());
+
+        return sessionManager;
+    }
+
+    @Bean
+    public RedisSessionDAO redisSessionDAO(){
+        RedisSessionDAO redisSessionDAO = new RedisSessionDAO();
+        return redisSessionDAO;
+    }
+
+    @Bean
+    public CacheManager redisCacheManager() {
+        return new RedisCacheManager();
     }
 }
